@@ -1,4 +1,4 @@
-# El Guapo
+# El-Guapo-Platform — El Guapo
 
 El Guapo is a reusable, local-first browser workbench for managing multiple game-development projects. It is not a game-client repository.
 
