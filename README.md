@@ -17,6 +17,14 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 - Local API entry: [`services/api/src/server.ts`](services/api/src/server.ts)
 - Before sharing code: `npm run check && npm run build && npm run test`
 
+## Public demo
+
+The public, read-only demonstration is deployed from `main` to GitHub Pages. It contains no real project data, credentials, source assets, task history, or Agent audit records. After GitHub Pages is enabled in repository settings, it is available at:
+
+`https://bridcm.github.io/El-Guapo-Platform/`
+
+Real projects continue to use El Guapo's protected local service until hosted authentication and data storage are introduced.
+
 ## Start here
 
 1. Read [WORKBENCH_BRIEF.md](docs/WORKBENCH_BRIEF.md) and fill the fields marked **Owner input required**.

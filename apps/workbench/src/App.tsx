@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
+const publicDemo = import.meta.env.VITE_PUBLIC_DEMO === "true";
+
 type Project = {
   id: string;
   name: string;
@@ -11,6 +13,38 @@ type Project = {
 type Standard = { id: string; title: string; category: string };
 
 const emptyForm = { id: "GAME-", name: "", unityVersion: "", repositoryPath: "", platforms: "Windows" };
+
+const artflowModules = [
+  ["01", "玩法设计", "产品定位、世界观、核心循环、范围与目标平台"],
+  ["02", "详细玩法", "状态机、输入、战斗、成长、联机、异常与验收"],
+  ["03", "主视觉", "风格圣经、镜头、色彩、材质与视觉门禁"],
+  ["04", "内容生产", "角色、动作、技能、特效、场景、关卡、UI 与叙事"],
+  ["05", "资产与交付", "Git LFS、审批、预览、构建、发布与回滚"],
+  ["06", "标准与 Agent", "跨项目规范、例外、任务审计和受限 Agent 接入"]
+];
+
+function PublicDemo() {
+  return <main className="public-demo">
+    <header>
+      <p className="eyebrow">PUBLIC DEMO · LOCAL-FIRST GAME DEVELOPMENT WORKBENCH</p>
+      <h1>El Guapo</h1>
+      <p className="intro">将 ArtFlow 的设计生产链扩展为可复用的 Unity 项目管理工作台。</p>
+      <div className="notice"><b>公开演示模式</b><span>此站仅展示能力与示例结构；真实项目、资源、任务和 Agent 写入需要受保护登录。</span></div>
+    </header>
+    <section className="demo-flow" aria-label="El Guapo 生产流程">
+      <p className="label">从定义到发布</p>
+      <div>{artflowModules.map(([number, title]) => <span key={number}>{number} {title}</span>)}</div>
+    </section>
+    <section className="module-grid" aria-label="工作台模块">
+      {artflowModules.map(([number, title, description]) => <article key={number}><span>{number}</span><h2>{title}</h2><p>{description}</p><small>公开演示 · 真实项目中按角色与项目权限访问</small></article>)}
+    </section>
+    <section className="public-access">
+      <p className="label">访问模型</p>
+      <h2>公开了解，受权协作</h2>
+      <div><article><b>未登录访客</b><p>查看 El Guapo 能力、标准框架和演示项目。</p></article><article><b>项目成员</b><p>登录后访问获授权项目的需求、资源、测试和发布记录。</p></article><article><b>Agent</b><p>使用项目范围内的受限接口创建任务、记录验证和读取上下文。</p></article></div>
+    </section>
+  </main>;
+}
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -55,6 +89,8 @@ export function App() {
     setMessage("项目已更新。");
     await load();
   };
+
+  if (publicDemo) return <PublicDemo />;
 
   return (
     <main>
