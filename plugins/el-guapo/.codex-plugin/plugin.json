@@ -1,0 +1,23 @@
+{
+  "name": "el-guapo",
+  "version": "0.1.0",
+  "description": "Connect Codex projects to the local El Guapo game-development workbench.",
+  "author": {
+    "name": "El Guapo"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "El Guapo",
+    "shortDescription": "Manage game projects, standards, tasks, and verification.",
+    "longDescription": "Connects Codex to the local El Guapo workbench through project-scoped MCP tools with task lifecycle enforcement and write auditing.",
+    "developerName": "El Guapo",
+    "category": "Productivity",
+    "capabilities": ["Project Context", "Task Management", "Audit Trail"],
+    "defaultPrompt": [
+      "Load my El Guapo project context and applicable standards.",
+      "Create an El Guapo task with complete acceptance criteria.",
+      "Record verification evidence for my current task."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

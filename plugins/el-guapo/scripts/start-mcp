@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+el_guapo_root="${EL_GUAPO_ROOT:-/Users/francisjin/Documents/ChatGPT/Yangzi 3}"
+exec /opt/homebrew/bin/node "$el_guapo_root/services/mcp/dist/src/server.js"

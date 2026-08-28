@@ -1,0 +1,31 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #eff8f3; background: #10231f; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1120px; margin: 0 auto; padding: 58px 28px 80px; }
+header { max-width: 700px; margin-bottom: 42px; }
+.eyebrow { color: #8bd4b5; letter-spacing: .12em; font-size: .75rem; font-weight: 700; }
+h1 { font-family: Georgia, serif; font-size: clamp(3rem, 9vw, 6rem); margin: 0; }
+.intro { color: #b9cdc3; font-size: 1.15rem; }
+.summary, .workspace, .project-list { display: grid; gap: 16px; }
+.summary { grid-template-columns: repeat(3, 1fr); margin-bottom: 18px; }
+article { border: 1px solid #315b4d; border-radius: 14px; padding: 22px; background: #17342d; }
+article span, .label { color: #a6e1c8; font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; margin: 0; }
+article strong { display: block; font-family: Georgia, serif; font-size: 2rem; margin: 12px 0; }
+article h2 { margin: 10px 0 16px; }
+article p { color: #c2d6cc; line-height: 1.55; }
+.workspace { grid-template-columns: 1.3fr .9fr; margin: 16px 0 36px; }
+.panel { min-height: 360px; }
+form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+label { display: grid; gap: 6px; color: #c2d6cc; font-size: .9rem; }
+input { background: #10231f; border: 1px solid #477b68; border-radius: 8px; color: #eff8f3; padding: 10px; font: inherit; }
+button { grid-column: 1 / -1; border: 0; border-radius: 8px; background: #98d7b9; color: #10231f; padding: 11px 14px; font-weight: 800; font: inherit; cursor: pointer; }
+.message { margin-bottom: 0; }
+ul { padding: 0; margin: 0; list-style: none; display: grid; gap: 12px; }
+li { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #315b4d; }
+li b { color: #a6e1c8; font-size: .85rem; }
+small { display: block; color: #a9c2b6; margin-top: 5px; }
+.projects { margin-top: 20px; }
+.project-list { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.project-list h3 { margin: 10px 0; }
+code { color: #a9c2b6; display: block; overflow-wrap: anywhere; font-size: .8rem; }
+@media (max-width: 720px) { .summary, .workspace, form { grid-template-columns: 1fr; } }

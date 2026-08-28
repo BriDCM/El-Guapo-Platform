@@ -1,0 +1,54 @@
+# Secrets and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/*.local.json
+*.swp
+
+# JavaScript / web
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+*.db
+*.db-journal
+data/
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Unity generated files
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+Recordings/
+
+# Unreal generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+.vs/
+
+# Large or generated media exports
+# Large source assets are versioned in managed Unity repositories with Git LFS,
+# not in this workbench repository. Keep release archives and transient exports out.
+*.zip
+*.unitypackage

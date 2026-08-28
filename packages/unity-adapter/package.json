@@ -1,0 +1,14 @@
+{
+  "name": "@el-guapo/unity-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo 'No Unity adapter tests configured yet; see task acceptance record.'",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

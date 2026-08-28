@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "el-guapo": {
+      "command": "./scripts/start-mcp",
+      "args": [],
+      "cwd": "."
+    }
+  }
+}
