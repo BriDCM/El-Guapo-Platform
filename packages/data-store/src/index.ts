@@ -58,6 +58,21 @@ export type GameplayFacts = {
   updatedAt: string;
 };
 
+export type AssetApprovalStatus = "draft" | "in_review" | "approved" | "changes_requested";
+export type AssetInput = {
+  projectId: string;
+  name: string;
+  assetType: string;
+  lfsPath: string;
+  rightsStatus: string;
+};
+export type StoredAsset = AssetInput & {
+  id: string;
+  approvalStatus: AssetApprovalStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type StoredAuditEvent = {
   id: string;
   actor: string;
@@ -120,6 +135,17 @@ export class ElGuapoStore {
         world_setting TEXT NOT NULL DEFAULT '',
         gameplay_loop TEXT NOT NULL DEFAULT '',
         platform_constraints TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS assets (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        name TEXT NOT NULL,
+        asset_type TEXT NOT NULL,
+        lfs_path TEXT NOT NULL,
+        rights_status TEXT NOT NULL,
+        approval_status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS verifications (
@@ -210,6 +236,43 @@ export class ElGuapoStore {
     return this.getGameplayFacts(projectId);
   }
 
+  listAssets(projectId: string): StoredAsset[] {
+    this.requireProject(projectId);
+    return this.database.prepare(`
+      SELECT id, project_id AS projectId, name, asset_type AS assetType, lfs_path AS lfsPath,
+        rights_status AS rightsStatus, approval_status AS approvalStatus,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM assets WHERE project_id = ? ORDER BY updated_at DESC
+    `).all(projectId) as StoredAsset[];
+  }
+
+  createAsset(input: AssetInput, actor = "owner") {
+    this.requireProject(input.projectId);
+    if (!input.name.trim() || !input.assetType.trim() || !input.lfsPath.trim() || !input.rightsStatus.trim()) {
+      throw new Error("资产名称、类型、Git LFS 路径和权利状态均为必填项。");
+    }
+    const id = `ART-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const now = new Date().toISOString();
+    this.database.prepare(`
+      INSERT INTO assets (id, project_id, name, asset_type, lfs_path, rights_status, approval_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)
+    `).run(id, input.projectId, input.name.trim(), input.assetType.trim(), input.lfsPath.trim(), input.rightsStatus.trim(), now, now);
+    this.audit(actor, input.projectId, "create_asset", "asset", id, { name: input.name, lfsPath: input.lfsPath });
+    return this.getAsset(id)!;
+  }
+
+  updateAssetApproval(projectId: string, assetId: string, approvalStatus: AssetApprovalStatus, actor = "owner") {
+    const asset = this.getAsset(assetId);
+    if (!asset || asset.projectId !== projectId) throw new Error("资产不存在或不属于该项目。");
+    const permitted: Record<AssetApprovalStatus, AssetApprovalStatus[]> = {
+      draft: ["in_review"], in_review: ["approved", "changes_requested"], changes_requested: ["draft"], approved: []
+    };
+    if (!permitted[asset.approvalStatus].includes(approvalStatus)) throw new Error("不允许进行该审批状态切换。");
+    this.database.prepare("UPDATE assets SET approval_status = ?, updated_at = ? WHERE id = ?").run(approvalStatus, new Date().toISOString(), assetId);
+    this.audit(actor, projectId, "update_asset_approval", "asset", assetId, { from: asset.approvalStatus, to: approvalStatus });
+    return this.getAsset(assetId)!;
+  }
+
   listTasks(projectId: string) {
     this.requireProject(projectId);
     return this.database.prepare(`
@@ -282,6 +345,14 @@ export class ElGuapoStore {
         status, created_at AS createdAt, updated_at AS updatedAt FROM tasks WHERE id = ?
     `).get(taskId) as ({ acceptanceCriteria: string } & Record<string, unknown>) | undefined;
     return row ? { ...row, acceptanceCriteria: JSON.parse(row.acceptanceCriteria) } as StoredTask : undefined;
+  }
+
+  private getAsset(assetId: string): StoredAsset | undefined {
+    return this.database.prepare(`
+      SELECT id, project_id AS projectId, name, asset_type AS assetType, lfs_path AS lfsPath,
+        rights_status AS rightsStatus, approval_status AS approvalStatus,
+        created_at AS createdAt, updated_at AS updatedAt FROM assets WHERE id = ?
+    `).get(assetId) as StoredAsset | undefined;
   }
 
   private requireProject(projectId: string) {

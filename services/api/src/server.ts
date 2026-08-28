@@ -76,5 +76,25 @@ app.post("/api/projects/:projectId/tasks", async (request, reply) => {
   } catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "任务创建失败。" }); }
 });
 
+app.get("/api/projects/:projectId/assets", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  try { return { items: store.listAssets(projectId) }; } catch { return reply.code(404).send({ message: "项目不存在。" }); }
+});
+
+app.post("/api/projects/:projectId/assets", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  const body = request.body as Partial<{ name: string; assetType: string; lfsPath: string; rightsStatus: string }>;
+  try {
+    return reply.code(201).send(store.createAsset({ projectId, name: body.name ?? "", assetType: body.assetType ?? "", lfsPath: body.lfsPath ?? "", rightsStatus: body.rightsStatus ?? "" }));
+  } catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "资产创建失败。" }); }
+});
+
+app.patch("/api/projects/:projectId/assets/:assetId/approval", async (request, reply) => {
+  const { projectId, assetId } = request.params as { projectId: string; assetId: string };
+  const body = request.body as Partial<{ approvalStatus: "draft" | "in_review" | "approved" | "changes_requested" }>;
+  if (!body.approvalStatus) return reply.code(400).send({ message: "缺少审批状态。" });
+  try { return store.updateAssetApproval(projectId, assetId, body.approvalStatus); } catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "审批更新失败。" }); }
+});
+
 const port = Number(process.env.PORT ?? 3001);
 await app.listen({ port, host: "127.0.0.1" });

@@ -13,6 +13,7 @@ type Project = {
 type Standard = { id: string; title: string; category: string };
 type GameplayFacts = { productPositioning: string; worldSetting: string; gameplayLoop: string; platformConstraints: string };
 type Task = { id: string; title: string; outcome: string; acceptanceCriteria: string[]; status: string };
+type Asset = { id: string; name: string; assetType: string; lfsPath: string; rightsStatus: string; approvalStatus: "draft" | "in_review" | "approved" | "changes_requested" };
 
 const emptyForm = { id: "GAME-", name: "", unityVersion: "", repositoryPath: "", platforms: "Windows" };
 
@@ -58,6 +59,8 @@ export function App() {
   const [facts, setFacts] = useState<GameplayFacts>({ productPositioning: "", worldSetting: "", gameplayLoop: "", platformConstraints: "" });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskForm, setTaskForm] = useState({ title: "", outcome: "", acceptanceCriteria: "" });
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetForm, setAssetForm] = useState({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
   const [message, setMessage] = useState("正在读取本地工作台…");
 
   const load = async () => {
@@ -73,11 +76,12 @@ export function App() {
 
   const loadProjectWorkspace = async (projectId: string) => {
     setSelectedProjectId(projectId);
-    if (!projectId) { setTasks([]); return; }
-    const [factsResponse, tasksResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`)]);
-    if (!factsResponse.ok || !tasksResponse.ok) { setMessage("无法读取项目工作区。"); return; }
+    if (!projectId) { setTasks([]); setAssets([]); return; }
+    const [factsResponse, tasksResponse, assetsResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`), fetch(`/api/projects/${projectId}/assets`)]);
+    if (!factsResponse.ok || !tasksResponse.ok || !assetsResponse.ok) { setMessage("无法读取项目工作区。"); return; }
     setFacts(await factsResponse.json() as GameplayFacts);
     setTasks((await tasksResponse.json() as { items: Task[] }).items);
+    setAssets((await assetsResponse.json() as { items: Asset[] }).items);
   };
 
   const saveGameplayFacts = async (event: FormEvent) => {
@@ -97,6 +101,24 @@ export function App() {
     setTaskForm({ title: "", outcome: "", acceptanceCriteria: "" });
     setMessage("任务已创建，状态为 Draft。");
     await loadProjectWorkspace(selectedProjectId);
+  };
+
+  const createAsset = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedProjectId) return;
+    const response = await fetch(`/api/projects/${selectedProjectId}/assets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(assetForm) });
+    const result = await response.json() as { message?: string };
+    if (!response.ok) { setMessage(result.message ?? "资产登记失败。"); return; }
+    setAssetForm({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
+    setMessage("资产已登记，等待提交审核。");
+    await loadProjectWorkspace(selectedProjectId);
+  };
+
+  const updateAssetStatus = async (assetId: string, approvalStatus: Asset["approvalStatus"]) => {
+    const response = await fetch(`/api/projects/${selectedProjectId}/assets/${assetId}/approval`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalStatus }) });
+    const result = await response.json() as { message?: string };
+    setMessage(response.ok ? "资产审批状态已更新。" : result.message ?? "资产状态更新失败。");
+    if (response.ok) await loadProjectWorkspace(selectedProjectId);
   };
 
   const createProject = async (event: FormEvent) => {
@@ -160,6 +182,10 @@ export function App() {
       <section className="gameplay-workspace">
         <p className="label">玩法与需求工作区</p><h2>把项目事实转为可验收任务</h2>
         {projects.length === 0 ? <p>先注册一个项目，才能创建玩法记录和任务。</p> : <><label>当前项目<select value={selectedProjectId} onChange={(event) => void loadProjectWorkspace(event.target.value)}><option value="">选择项目</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.id} · {project.name}</option>)}</select></label>{selectedProjectId && <div className="gameplay-columns"><form className="facts-form" onSubmit={saveGameplayFacts}><h3>玩法设计基础</h3><label>产品定位<textarea value={facts.productPositioning} onChange={(event) => setFacts({ ...facts, productPositioning: event.target.value })} placeholder="目标玩家、核心体验、明确不做什么" /></label><label>世界观与体验语境<textarea value={facts.worldSetting} onChange={(event) => setFacts({ ...facts, worldSetting: event.target.value })} placeholder="时代、地点、玩家身份、核心冲突" /></label><label>核心循环与玩法边界<textarea value={facts.gameplayLoop} onChange={(event) => setFacts({ ...facts, gameplayLoop: event.target.value })} placeholder="玩家反复执行的行为、反馈与长期驱动力" /></label><label>平台与技术边界<textarea value={facts.platformConstraints} onChange={(event) => setFacts({ ...facts, platformConstraints: event.target.value })} placeholder="性能、输入、联网、屏幕和审核限制" /></label><button>保存玩法基础</button></form><div><form className="task-form" onSubmit={createTask}><h3>创建可执行任务</h3><label>任务标题<input value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} required /></label><label>可观察结果<textarea value={taskForm.outcome} onChange={(event) => setTaskForm({ ...taskForm, outcome: event.target.value })} required /></label><label>验收条件（每行一条）<textarea value={taskForm.acceptanceCriteria} onChange={(event) => setTaskForm({ ...taskForm, acceptanceCriteria: event.target.value })} required /></label><button>创建 Draft 任务</button></form><h3>当前任务</h3>{tasks.length === 0 ? <p>尚无任务。</p> : <ul className="task-list">{tasks.map((task) => <li key={task.id}><b>{task.status}</b><div>{task.title}<small>{task.outcome}</small></div></li>)}</ul>}</div></div>}</>}
+      </section>
+      <section className="asset-workspace">
+        <p className="label">资产库与审批</p><h2>登记 Git LFS 引用，控制正式资产进入游戏</h2>
+        {!selectedProjectId ? <p>在“玩法与需求工作区”选择一个项目后，才能登记资产。</p> : <div className="asset-columns"><form className="asset-form" onSubmit={createAsset}><h3>登记资产</h3><label>资源名称<input value={assetForm.name} onChange={(event) => setAssetForm({ ...assetForm, name: event.target.value })} placeholder="主角待机动作图集" required /></label><label>资源类型<select value={assetForm.assetType} onChange={(event) => setAssetForm({ ...assetForm, assetType: event.target.value })}>{["角色", "动作", "技能", "特效", "场景", "地图元素", "UI", "音频", "其他"].map((type) => <option key={type}>{type}</option>)}</select></label><label>Git LFS 路径<input value={assetForm.lfsPath} onChange={(event) => setAssetForm({ ...assetForm, lfsPath: event.target.value })} placeholder="Assets/Art/Characters/Hero/idle.psd" required /></label><label>权利状态<input value={assetForm.rightsStatus} onChange={(event) => setAssetForm({ ...assetForm, rightsStatus: event.target.value })} placeholder="自制 / 已授权 / 待确认" required /></label><button>登记 Draft 资产</button></form><div><h3>资产审批队列</h3>{assets.length === 0 ? <p>尚未登记资产。</p> : <div className="asset-list">{assets.map((asset) => <article key={asset.id}><div><b>{asset.approvalStatus}</b><h4>{asset.name}</h4><p>{asset.assetType} · 权利：{asset.rightsStatus}</p><code>{asset.lfsPath}</code></div><div className="asset-actions">{asset.approvalStatus === "draft" && <button onClick={() => void updateAssetStatus(asset.id, "in_review")}>提交审核</button>}{asset.approvalStatus === "in_review" && <><button onClick={() => void updateAssetStatus(asset.id, "approved")}>批准</button><button onClick={() => void updateAssetStatus(asset.id, "changes_requested")}>要求修改</button></>}{asset.approvalStatus === "changes_requested" && <button onClick={() => void updateAssetStatus(asset.id, "draft")}>重新提交</button>}</div></article>)}</div>}</div></div>}
       </section>
     </main>
   );
