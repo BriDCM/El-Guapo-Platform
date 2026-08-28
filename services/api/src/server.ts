@@ -96,5 +96,26 @@ app.patch("/api/projects/:projectId/assets/:assetId/approval", async (request, r
   try { return store.updateAssetApproval(projectId, assetId, body.approvalStatus); } catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "审批更新失败。" }); }
 });
 
+app.get("/api/projects/:projectId/content-specs", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  try { return { items: store.listContentSpecs(projectId) }; } catch { return reply.code(404).send({ message: "项目不存在。" }); }
+});
+
+app.post("/api/projects/:projectId/content-specs", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  const body = request.body as Partial<{ module: "character" | "motion" | "skill" | "vfx" | "scene" | "level" | "ui"; title: string; brief: string; handoff: string }>;
+  if (!body.module) return reply.code(400).send({ message: "请选择内容模块。" });
+  try { return reply.code(201).send(store.createContentSpec({ projectId, module: body.module, title: body.title ?? "", brief: body.brief ?? "", handoff: body.handoff ?? "" })); }
+  catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "设计包创建失败。" }); }
+});
+
+app.patch("/api/projects/:projectId/content-specs/:specId/status", async (request, reply) => {
+  const { projectId, specId } = request.params as { projectId: string; specId: string };
+  const body = request.body as Partial<{ status: "draft" | "in_review" | "approved" | "changes_requested" }>;
+  if (!body.status) return reply.code(400).send({ message: "缺少设计包状态。" });
+  try { return store.updateContentSpecStatus(projectId, specId, body.status); }
+  catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "设计包状态更新失败。" }); }
+});
+
 const port = Number(process.env.PORT ?? 3001);
 await app.listen({ port, host: "127.0.0.1" });

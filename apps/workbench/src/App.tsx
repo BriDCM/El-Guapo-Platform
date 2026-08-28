@@ -14,6 +14,14 @@ type Standard = { id: string; title: string; category: string };
 type GameplayFacts = { productPositioning: string; worldSetting: string; gameplayLoop: string; platformConstraints: string };
 type Task = { id: string; title: string; outcome: string; acceptanceCriteria: string[]; status: string };
 type Asset = { id: string; name: string; assetType: string; lfsPath: string; rightsStatus: string; approvalStatus: "draft" | "in_review" | "approved" | "changes_requested" };
+type ContentModule = "character" | "motion" | "skill" | "vfx" | "scene" | "level" | "ui";
+type ContentSpec = { id: string; module: ContentModule; title: string; brief: string; handoff: string; status: Asset["approvalStatus"] };
+
+const contentModules: Array<{ value: ContentModule; label: string }> = [
+  { value: "character", label: "角色设计" }, { value: "motion", label: "角色动作" },
+  { value: "skill", label: "技能设计" }, { value: "vfx", label: "技能动效" },
+  { value: "scene", label: "背景设计" }, { value: "level", label: "剧情关卡" }, { value: "ui", label: "游戏 UI" }
+];
 
 const emptyForm = { id: "GAME-", name: "", unityVersion: "", repositoryPath: "", platforms: "Windows" };
 
@@ -61,6 +69,8 @@ export function App() {
   const [taskForm, setTaskForm] = useState({ title: "", outcome: "", acceptanceCriteria: "" });
   const [assets, setAssets] = useState<Asset[]>([]);
   const [assetForm, setAssetForm] = useState({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
+  const [contentSpecs, setContentSpecs] = useState<ContentSpec[]>([]);
+  const [contentSpecForm, setContentSpecForm] = useState<{ module: ContentModule; title: string; brief: string; handoff: string }>({ module: "character", title: "", brief: "", handoff: "" });
   const [message, setMessage] = useState("正在读取本地工作台…");
 
   const load = async () => {
@@ -76,12 +86,13 @@ export function App() {
 
   const loadProjectWorkspace = async (projectId: string) => {
     setSelectedProjectId(projectId);
-    if (!projectId) { setTasks([]); setAssets([]); return; }
-    const [factsResponse, tasksResponse, assetsResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`), fetch(`/api/projects/${projectId}/assets`)]);
-    if (!factsResponse.ok || !tasksResponse.ok || !assetsResponse.ok) { setMessage("无法读取项目工作区。"); return; }
+    if (!projectId) { setTasks([]); setAssets([]); setContentSpecs([]); return; }
+    const [factsResponse, tasksResponse, assetsResponse, contentSpecsResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`), fetch(`/api/projects/${projectId}/assets`), fetch(`/api/projects/${projectId}/content-specs`)]);
+    if (!factsResponse.ok || !tasksResponse.ok || !assetsResponse.ok || !contentSpecsResponse.ok) { setMessage("无法读取项目工作区。"); return; }
     setFacts(await factsResponse.json() as GameplayFacts);
     setTasks((await tasksResponse.json() as { items: Task[] }).items);
     setAssets((await assetsResponse.json() as { items: Asset[] }).items);
+    setContentSpecs((await contentSpecsResponse.json() as { items: ContentSpec[] }).items);
   };
 
   const saveGameplayFacts = async (event: FormEvent) => {
@@ -118,6 +129,24 @@ export function App() {
     const response = await fetch(`/api/projects/${selectedProjectId}/assets/${assetId}/approval`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalStatus }) });
     const result = await response.json() as { message?: string };
     setMessage(response.ok ? "资产审批状态已更新。" : result.message ?? "资产状态更新失败。");
+    if (response.ok) await loadProjectWorkspace(selectedProjectId);
+  };
+
+  const createContentSpec = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedProjectId) return;
+    const response = await fetch(`/api/projects/${selectedProjectId}/content-specs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(contentSpecForm) });
+    const result = await response.json() as { message?: string };
+    if (!response.ok) { setMessage(result.message ?? "设计包创建失败。"); return; }
+    setContentSpecForm({ module: "character", title: "", brief: "", handoff: "" });
+    setMessage("设计包已创建，等待提交审核。");
+    await loadProjectWorkspace(selectedProjectId);
+  };
+
+  const updateContentSpecStatus = async (specId: string, status: ContentSpec["status"]) => {
+    const response = await fetch(`/api/projects/${selectedProjectId}/content-specs/${specId}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
+    const result = await response.json() as { message?: string };
+    setMessage(response.ok ? "设计包审核状态已更新。" : result.message ?? "设计包状态更新失败。");
     if (response.ok) await loadProjectWorkspace(selectedProjectId);
   };
 
@@ -186,6 +215,10 @@ export function App() {
       <section className="asset-workspace">
         <p className="label">资产库与审批</p><h2>登记 Git LFS 引用，控制正式资产进入游戏</h2>
         {!selectedProjectId ? <p>在“玩法与需求工作区”选择一个项目后，才能登记资产。</p> : <div className="asset-columns"><form className="asset-form" onSubmit={createAsset}><h3>登记资产</h3><label>资源名称<input value={assetForm.name} onChange={(event) => setAssetForm({ ...assetForm, name: event.target.value })} placeholder="主角待机动作图集" required /></label><label>资源类型<select value={assetForm.assetType} onChange={(event) => setAssetForm({ ...assetForm, assetType: event.target.value })}>{["角色", "动作", "技能", "特效", "场景", "地图元素", "UI", "音频", "其他"].map((type) => <option key={type}>{type}</option>)}</select></label><label>Git LFS 路径<input value={assetForm.lfsPath} onChange={(event) => setAssetForm({ ...assetForm, lfsPath: event.target.value })} placeholder="Assets/Art/Characters/Hero/idle.psd" required /></label><label>权利状态<input value={assetForm.rightsStatus} onChange={(event) => setAssetForm({ ...assetForm, rightsStatus: event.target.value })} placeholder="自制 / 已授权 / 待确认" required /></label><button>登记 Draft 资产</button></form><div><h3>资产审批队列</h3>{assets.length === 0 ? <p>尚未登记资产。</p> : <div className="asset-list">{assets.map((asset) => <article key={asset.id}><div><b>{asset.approvalStatus}</b><h4>{asset.name}</h4><p>{asset.assetType} · 权利：{asset.rightsStatus}</p><code>{asset.lfsPath}</code></div><div className="asset-actions">{asset.approvalStatus === "draft" && <button onClick={() => void updateAssetStatus(asset.id, "in_review")}>提交审核</button>}{asset.approvalStatus === "in_review" && <><button onClick={() => void updateAssetStatus(asset.id, "approved")}>批准</button><button onClick={() => void updateAssetStatus(asset.id, "changes_requested")}>要求修改</button></>}{asset.approvalStatus === "changes_requested" && <button onClick={() => void updateAssetStatus(asset.id, "draft")}>重新提交</button>}</div></article>)}</div>}</div></div>}
+      </section>
+      <section className="content-workspace">
+        <p className="label">内容生产设计包</p><h2>先定义可交接的设计，再进入正式资产生产</h2>
+        {!selectedProjectId ? <p>在“玩法与需求工作区”选择一个项目后，才能建立内容设计包。</p> : <div className="content-columns"><form className="content-form" onSubmit={createContentSpec}><h3>新建设计包</h3><label>内容模块<select value={contentSpecForm.module} onChange={(event) => setContentSpecForm({ ...contentSpecForm, module: event.target.value as ContentModule })}>{contentModules.map((module) => <option key={module.value} value={module.value}>{module.label}</option>)}</select></label><label>设计包标题<input value={contentSpecForm.title} onChange={(event) => setContentSpecForm({ ...contentSpecForm, title: event.target.value })} placeholder="例如：主角基础移动与受击动作" required /></label><label>设计说明<textarea value={contentSpecForm.brief} onChange={(event) => setContentSpecForm({ ...contentSpecForm, brief: event.target.value })} placeholder="目标体验、行为规则、视觉/交互约束、参考与明确不做什么" required /></label><label>下游交接<textarea value={contentSpecForm.handoff} onChange={(event) => setContentSpecForm({ ...contentSpecForm, handoff: event.target.value })} placeholder="交给谁、应产出什么、文件/命名/验收要求" required /></label><button>创建 Draft 设计包</button></form><div><h3>设计包审核队列</h3>{contentSpecs.length === 0 ? <p>尚无设计包。</p> : <div className="content-spec-list">{contentSpecs.map((spec) => <article key={spec.id}><div><b>{spec.status}</b><h4>{contentModules.find((module) => module.value === spec.module)?.label} · {spec.title}</h4><p>{spec.brief}</p><small>交接：{spec.handoff}</small></div><div className="asset-actions">{spec.status === "draft" && <button onClick={() => void updateContentSpecStatus(spec.id, "in_review")}>提交审核</button>}{spec.status === "in_review" && <><button onClick={() => void updateContentSpecStatus(spec.id, "approved")}>批准</button><button onClick={() => void updateContentSpecStatus(spec.id, "changes_requested")}>要求修改</button></>}{spec.status === "changes_requested" && <button onClick={() => void updateContentSpecStatus(spec.id, "draft")}>重新提交</button>}</div></article>)}</div>}</div></div>}
       </section>
     </main>
   );

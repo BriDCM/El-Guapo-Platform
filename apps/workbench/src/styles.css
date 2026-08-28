@@ -29,6 +29,7 @@ small { display: block; color: #a9c2b6; margin-top: 5px; }
 .projects { margin-top: 20px; }
 .gameplay-workspace { margin-top: 42px; }
 .asset-workspace { margin-top: 42px; }
+.content-workspace { margin-top: 42px; }
 .gameplay-workspace > label { max-width: 420px; margin: 14px 0; }
 .gameplay-columns { display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; align-items: start; }
 .facts-form, .task-form { display: grid; gap: 12px; padding: 22px; border: 1px solid #315b4d; border-radius: 14px; background: #17342d; }
@@ -43,10 +44,17 @@ small { display: block; color: #a9c2b6; margin-top: 5px; }
 .asset-list p { margin: 0 0 8px; }
 .asset-actions { display: flex; gap: 8px; align-items: start; flex-wrap: wrap; }
 .asset-actions button { width: auto; }
+.content-columns { display: grid; grid-template-columns: .9fr 1.1fr; gap: 16px; align-items: start; }
+.content-form { display: grid; gap: 12px; padding: 22px; border: 1px solid #315b4d; border-radius: 14px; background: #17342d; }
+.content-form h3 { margin: 0; }
+.content-spec-list { display: grid; gap: 10px; }
+.content-spec-list article { min-height: 0; display: flex; justify-content: space-between; gap: 16px; }
+.content-spec-list h4 { margin: 7px 0; }
+.content-spec-list p { margin: 0 0 8px; }
 .project-list { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .project-list h3 { margin: 10px 0; }
 code { color: #a9c2b6; display: block; overflow-wrap: anywhere; font-size: .8rem; }
-@media (max-width: 720px) { .summary, .workspace, form, .gameplay-columns, .asset-columns { grid-template-columns: 1fr; } .asset-list article { flex-direction: column; } }
+@media (max-width: 720px) { .summary, .workspace, form, .gameplay-columns, .asset-columns, .content-columns { grid-template-columns: 1fr; } .asset-list article, .content-spec-list article { flex-direction: column; } }
 
 .public-demo { max-width: 1160px; }
 .notice { display: flex; gap: 12px; align-items: baseline; margin-top: 24px; padding: 14px 16px; border: 1px solid #477b68; border-radius: 10px; background: #17342d; color: #c2d6cc; }

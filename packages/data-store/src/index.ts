@@ -73,6 +73,10 @@ export type StoredAsset = AssetInput & {
   updatedAt: string;
 };
 
+export type ContentModule = "character" | "motion" | "skill" | "vfx" | "scene" | "level" | "ui";
+export type ContentSpecInput = { projectId: string; module: ContentModule; title: string; brief: string; handoff: string };
+export type StoredContentSpec = ContentSpecInput & { id: string; status: AssetApprovalStatus; createdAt: string; updatedAt: string };
+
 export type StoredAuditEvent = {
   id: string;
   actor: string;
@@ -145,6 +149,17 @@ export class ElGuapoStore {
         lfs_path TEXT NOT NULL,
         rights_status TEXT NOT NULL,
         approval_status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS content_specs (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        module TEXT NOT NULL,
+        title TEXT NOT NULL,
+        brief TEXT NOT NULL,
+        handoff TEXT NOT NULL,
+        status TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -273,6 +288,38 @@ export class ElGuapoStore {
     return this.getAsset(assetId)!;
   }
 
+  listContentSpecs(projectId: string): StoredContentSpec[] {
+    this.requireProject(projectId);
+    return this.database.prepare(`
+      SELECT id, project_id AS projectId, module, title, brief, handoff, status,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM content_specs WHERE project_id = ? ORDER BY updated_at DESC
+    `).all(projectId) as StoredContentSpec[];
+  }
+
+  createContentSpec(input: ContentSpecInput, actor = "owner") {
+    this.requireProject(input.projectId);
+    if (!input.title.trim() || !input.brief.trim() || !input.handoff.trim()) throw new Error("设计包必须包含标题、设计简报和下游交接说明。");
+    const id = `SPEC-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const now = new Date().toISOString();
+    this.database.prepare(`
+      INSERT INTO content_specs (id, project_id, module, title, brief, handoff, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)
+    `).run(id, input.projectId, input.module, input.title.trim(), input.brief.trim(), input.handoff.trim(), now, now);
+    this.audit(actor, input.projectId, "create_content_spec", "content_spec", id, { module: input.module, title: input.title });
+    return this.getContentSpec(id)!;
+  }
+
+  updateContentSpecStatus(projectId: string, specId: string, status: AssetApprovalStatus, actor = "owner") {
+    const spec = this.getContentSpec(specId);
+    if (!spec || spec.projectId !== projectId) throw new Error("设计包不存在或不属于该项目。");
+    const permitted: Record<AssetApprovalStatus, AssetApprovalStatus[]> = { draft: ["in_review"], in_review: ["approved", "changes_requested"], changes_requested: ["draft"], approved: [] };
+    if (!permitted[spec.status].includes(status)) throw new Error("不允许进行该设计包状态切换。");
+    this.database.prepare("UPDATE content_specs SET status = ?, updated_at = ? WHERE id = ?").run(status, new Date().toISOString(), specId);
+    this.audit(actor, projectId, "update_content_spec_status", "content_spec", specId, { from: spec.status, to: status });
+    return this.getContentSpec(specId)!;
+  }
+
   listTasks(projectId: string) {
     this.requireProject(projectId);
     return this.database.prepare(`
@@ -324,7 +371,14 @@ export class ElGuapoStore {
 
   projectContext(projectId: string) {
     const project = this.requireProject(projectId);
-    return { project, standards, gameplayFacts: this.getGameplayFacts(projectId), tasks: this.listTasks(projectId) };
+    return {
+      project,
+      standards,
+      gameplayFacts: this.getGameplayFacts(projectId),
+      tasks: this.listTasks(projectId),
+      assets: this.listAssets(projectId),
+      contentSpecs: this.listContentSpecs(projectId)
+    };
   }
 
   listAudit(projectId: string): StoredAuditEvent[] {
@@ -353,6 +407,13 @@ export class ElGuapoStore {
         rights_status AS rightsStatus, approval_status AS approvalStatus,
         created_at AS createdAt, updated_at AS updatedAt FROM assets WHERE id = ?
     `).get(assetId) as StoredAsset | undefined;
+  }
+
+  private getContentSpec(specId: string): StoredContentSpec | undefined {
+    return this.database.prepare(`
+      SELECT id, project_id AS projectId, module, title, brief, handoff, status,
+        created_at AS createdAt, updated_at AS updatedAt FROM content_specs WHERE id = ?
+    `).get(specId) as StoredContentSpec | undefined;
   }
 
   private requireProject(projectId: string) {
