@@ -49,6 +49,15 @@ export type StoredTask = {
   updatedAt: string;
 };
 
+export type GameplayFacts = {
+  projectId: string;
+  productPositioning: string;
+  worldSetting: string;
+  gameplayLoop: string;
+  platformConstraints: string;
+  updatedAt: string;
+};
+
 export type StoredAuditEvent = {
   id: string;
   actor: string;
@@ -103,6 +112,14 @@ export class ElGuapoStore {
         acceptance_criteria TEXT NOT NULL,
         status TEXT NOT NULL,
         created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS gameplay_facts (
+        project_id TEXT PRIMARY KEY REFERENCES projects(id),
+        product_positioning TEXT NOT NULL DEFAULT '',
+        world_setting TEXT NOT NULL DEFAULT '',
+        gameplay_loop TEXT NOT NULL DEFAULT '',
+        platform_constraints TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS verifications (
@@ -165,6 +182,34 @@ export class ElGuapoStore {
     return this.getProject(projectId)!;
   }
 
+  getGameplayFacts(projectId: string): GameplayFacts {
+    this.requireProject(projectId);
+    const row = this.database.prepare(`
+      SELECT project_id AS projectId, product_positioning AS productPositioning,
+        world_setting AS worldSetting, gameplay_loop AS gameplayLoop,
+        platform_constraints AS platformConstraints, updated_at AS updatedAt
+      FROM gameplay_facts WHERE project_id = ?
+    `).get(projectId) as GameplayFacts | undefined;
+    return row ?? { projectId, productPositioning: "", worldSetting: "", gameplayLoop: "", platformConstraints: "", updatedAt: "" };
+  }
+
+  updateGameplayFacts(projectId: string, facts: Omit<GameplayFacts, "projectId" | "updatedAt">, actor = "owner") {
+    this.requireProject(projectId);
+    const updatedAt = new Date().toISOString();
+    this.database.prepare(`
+      INSERT INTO gameplay_facts (project_id, product_positioning, world_setting, gameplay_loop, platform_constraints, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        product_positioning = excluded.product_positioning,
+        world_setting = excluded.world_setting,
+        gameplay_loop = excluded.gameplay_loop,
+        platform_constraints = excluded.platform_constraints,
+        updated_at = excluded.updated_at
+    `).run(projectId, facts.productPositioning.trim(), facts.worldSetting.trim(), facts.gameplayLoop.trim(), facts.platformConstraints.trim(), updatedAt);
+    this.audit(actor, projectId, "update_gameplay_facts", "gameplay_facts", projectId, { updatedAt });
+    return this.getGameplayFacts(projectId);
+  }
+
   listTasks(projectId: string) {
     this.requireProject(projectId);
     return this.database.prepare(`
@@ -216,7 +261,7 @@ export class ElGuapoStore {
 
   projectContext(projectId: string) {
     const project = this.requireProject(projectId);
-    return { project, standards, tasks: this.listTasks(projectId) };
+    return { project, standards, gameplayFacts: this.getGameplayFacts(projectId), tasks: this.listTasks(projectId) };
   }
 
   listAudit(projectId: string): StoredAuditEvent[] {

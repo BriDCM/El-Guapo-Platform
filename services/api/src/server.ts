@@ -44,5 +44,37 @@ app.get("/api/standards", async () => ({
   items: standards
 }));
 
+app.get("/api/projects/:projectId/gameplay-facts", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  try { return store.getGameplayFacts(projectId); } catch { return reply.code(404).send({ message: "项目不存在。" }); }
+});
+
+app.put("/api/projects/:projectId/gameplay-facts", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  const body = request.body as Partial<{ productPositioning: string; worldSetting: string; gameplayLoop: string; platformConstraints: string }>;
+  try {
+    return store.updateGameplayFacts(projectId, {
+      productPositioning: body.productPositioning ?? "",
+      worldSetting: body.worldSetting ?? "",
+      gameplayLoop: body.gameplayLoop ?? "",
+      platformConstraints: body.platformConstraints ?? ""
+    });
+  } catch { return reply.code(404).send({ message: "项目不存在。" }); }
+});
+
+app.get("/api/projects/:projectId/tasks", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  try { return { items: store.listTasks(projectId) }; } catch { return reply.code(404).send({ message: "项目不存在。" }); }
+});
+
+app.post("/api/projects/:projectId/tasks", async (request, reply) => {
+  const { projectId } = request.params as { projectId: string };
+  const body = request.body as Partial<{ title: string; outcome: string; acceptanceCriteria: string[] }>;
+  try {
+    const task = store.createTask({ projectId, title: body.title ?? "", outcome: body.outcome ?? "", acceptanceCriteria: body.acceptanceCriteria ?? [] }, "owner");
+    return reply.code(201).send(task);
+  } catch (error) { return reply.code(400).send({ message: error instanceof Error ? error.message : "任务创建失败。" }); }
+});
+
 const port = Number(process.env.PORT ?? 3001);
 await app.listen({ port, host: "127.0.0.1" });

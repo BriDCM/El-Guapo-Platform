@@ -11,6 +11,8 @@ type Project = {
 };
 
 type Standard = { id: string; title: string; category: string };
+type GameplayFacts = { productPositioning: string; worldSetting: string; gameplayLoop: string; platformConstraints: string };
+type Task = { id: string; title: string; outcome: string; acceptanceCriteria: string[]; status: string };
 
 const emptyForm = { id: "GAME-", name: "", unityVersion: "", repositoryPath: "", platforms: "Windows" };
 
@@ -52,6 +54,10 @@ export function App() {
   const [form, setForm] = useState(emptyForm);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [platformsDraft, setPlatformsDraft] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [facts, setFacts] = useState<GameplayFacts>({ productPositioning: "", worldSetting: "", gameplayLoop: "", platformConstraints: "" });
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskForm, setTaskForm] = useState({ title: "", outcome: "", acceptanceCriteria: "" });
   const [message, setMessage] = useState("正在读取本地工作台…");
 
   const load = async () => {
@@ -64,6 +70,34 @@ export function App() {
   };
 
   useEffect(() => { void load().catch(() => setMessage("无法连接本地 API。请运行 npm run dev。")); }, []);
+
+  const loadProjectWorkspace = async (projectId: string) => {
+    setSelectedProjectId(projectId);
+    if (!projectId) { setTasks([]); return; }
+    const [factsResponse, tasksResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`)]);
+    if (!factsResponse.ok || !tasksResponse.ok) { setMessage("无法读取项目工作区。"); return; }
+    setFacts(await factsResponse.json() as GameplayFacts);
+    setTasks((await tasksResponse.json() as { items: Task[] }).items);
+  };
+
+  const saveGameplayFacts = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedProjectId) return;
+    const response = await fetch(`/api/projects/${selectedProjectId}/gameplay-facts`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(facts) });
+    setMessage(response.ok ? "玩法基础已保存。" : "玩法基础保存失败。");
+  };
+
+  const createTask = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedProjectId) return;
+    const acceptanceCriteria = taskForm.acceptanceCriteria.split("\n").map((item) => item.trim()).filter(Boolean);
+    const response = await fetch(`/api/projects/${selectedProjectId}/tasks`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...taskForm, acceptanceCriteria }) });
+    const result = await response.json() as { message?: string };
+    if (!response.ok) { setMessage(result.message ?? "任务创建失败。"); return; }
+    setTaskForm({ title: "", outcome: "", acceptanceCriteria: "" });
+    setMessage("任务已创建，状态为 Draft。");
+    await loadProjectWorkspace(selectedProjectId);
+  };
 
   const createProject = async (event: FormEvent) => {
     event.preventDefault();
@@ -123,6 +157,10 @@ export function App() {
         </article>
       </section>
       <section className="projects"><p className="label">受管项目</p><h2>项目列表</h2>{projects.length === 0 ? <p>尚未注册项目。请使用上方表单创建第一个项目。</p> : <div className="project-list">{projects.map((project) => <article key={project.id}><b>{project.id}</b><h3>{project.name}</h3><p>Unity {project.unityVersion ?? "待定义"} · {project.platforms}</p><code>{project.repositoryPath ?? "未设置本地仓库路径"}</code>{editingProjectId === project.id ? <div><label>编辑目标平台<input aria-label={`${project.id} 目标平台`} value={platformsDraft} onChange={(event) => setPlatformsDraft(event.target.value)} /></label><button type="button" onClick={() => void updatePlatforms(project.id)}>保存目标平台</button></div> : <button type="button" onClick={() => { setEditingProjectId(project.id); setPlatformsDraft(project.platforms); }}>编辑项目</button>}</article>)}</div>}</section>
+      <section className="gameplay-workspace">
+        <p className="label">玩法与需求工作区</p><h2>把项目事实转为可验收任务</h2>
+        {projects.length === 0 ? <p>先注册一个项目，才能创建玩法记录和任务。</p> : <><label>当前项目<select value={selectedProjectId} onChange={(event) => void loadProjectWorkspace(event.target.value)}><option value="">选择项目</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.id} · {project.name}</option>)}</select></label>{selectedProjectId && <div className="gameplay-columns"><form className="facts-form" onSubmit={saveGameplayFacts}><h3>玩法设计基础</h3><label>产品定位<textarea value={facts.productPositioning} onChange={(event) => setFacts({ ...facts, productPositioning: event.target.value })} placeholder="目标玩家、核心体验、明确不做什么" /></label><label>世界观与体验语境<textarea value={facts.worldSetting} onChange={(event) => setFacts({ ...facts, worldSetting: event.target.value })} placeholder="时代、地点、玩家身份、核心冲突" /></label><label>核心循环与玩法边界<textarea value={facts.gameplayLoop} onChange={(event) => setFacts({ ...facts, gameplayLoop: event.target.value })} placeholder="玩家反复执行的行为、反馈与长期驱动力" /></label><label>平台与技术边界<textarea value={facts.platformConstraints} onChange={(event) => setFacts({ ...facts, platformConstraints: event.target.value })} placeholder="性能、输入、联网、屏幕和审核限制" /></label><button>保存玩法基础</button></form><div><form className="task-form" onSubmit={createTask}><h3>创建可执行任务</h3><label>任务标题<input value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} required /></label><label>可观察结果<textarea value={taskForm.outcome} onChange={(event) => setTaskForm({ ...taskForm, outcome: event.target.value })} required /></label><label>验收条件（每行一条）<textarea value={taskForm.acceptanceCriteria} onChange={(event) => setTaskForm({ ...taskForm, acceptanceCriteria: event.target.value })} required /></label><button>创建 Draft 任务</button></form><h3>当前任务</h3>{tasks.length === 0 ? <p>尚无任务。</p> : <ul className="task-list">{tasks.map((task) => <li key={task.id}><b>{task.status}</b><div>{task.title}<small>{task.outcome}</small></div></li>)}</ul>}</div></div>}</>}
+      </section>
     </main>
   );
 }
