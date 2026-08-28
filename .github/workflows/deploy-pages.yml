@@ -30,6 +30,9 @@ jobs:
       # lockfile was created on macOS but this job runs on Linux. Re-resolving
       # dependencies on the runner installs the required Linux optional package.
       - run: npm install --include=optional --no-audit --no-fund
+      # Pin the runner binary explicitly as a final guard against npm omitting
+      # Rollup's optional platform package from a macOS-generated lockfile.
+      - run: npm install --no-save --no-audit --no-fund @rollup/rollup-linux-x64-gnu@4.63.0
       - run: npm run build --workspace @el-guapo/workbench
         env:
           VITE_PUBLIC_DEMO: "true"
