@@ -13,6 +13,8 @@ npm run dev
 
 Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
+If the browser reports `ERR_CONNECTION_REFUSED`, the development service is not running. Keep the Terminal window that runs `npm run dev` open, then reload the page. El Guapo binds its browser service to local IPv4 only (`127.0.0.1`); it is not exposed to your local network.
+
 - Browser entry: [`apps/workbench/src/main.tsx`](apps/workbench/src/main.tsx)
 - Local API entry: [`services/api/src/server.ts`](services/api/src/server.ts)
 - Before sharing code: `npm run check && npm run build && npm run test`
