@@ -17,13 +17,19 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 - Local API entry: [`services/api/src/server.ts`](services/api/src/server.ts)
 - Before sharing code: `npm run check && npm run build && npm run test`
 
-## Public demo
+## GitHub-only workbench
 
-The public, read-only demonstration is deployed from `main` to GitHub Pages. It contains no real project data, credentials, source assets, task history, or Agent audit records. After GitHub Pages is enabled in repository settings, it is available at:
+El Guapo can run without `localhost` or a separate cloud provider. GitHub Pages hosts the browser UI and a dedicated **private GitHub repository** stores workbench metadata as versioned JSON. Each save becomes a Git commit in that data repository.
+
+Follow [the GitHub-only setup guide](docs/GITHUB_ONLY_DEPLOYMENT.md) once to create the private data repository and a minimally scoped fine-grained token. The token is entered only at runtime and kept in the current browser session; it is never committed, included in a Pages build, or stored as a GitHub Actions variable.
+
+## Public website
+
+The workbench UI is deployed from `main` to GitHub Pages. It contains no real project data, credentials, source assets, task history, or Agent audit records. After GitHub Pages is enabled in repository settings, it is available at:
 
 `https://bridcm.github.io/El-Guapo-Platform/`
 
-Real projects continue to use El Guapo's protected local service until hosted authentication and data storage are introduced.
+The website cannot read or write project data until the owner supplies a session-only token for the selected private data repository.
 
 ## Start here
 
