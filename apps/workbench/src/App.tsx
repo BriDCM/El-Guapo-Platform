@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
+import { githubApiFetch, readGitHubConfiguration, saveGitHubConfiguration } from "./github-store";
 
-const publicDemo = import.meta.env.VITE_PUBLIC_DEMO === "true";
+const githubOnly = import.meta.env.VITE_GITHUB_ONLY === "true";
+const publicDemo = import.meta.env.VITE_PUBLIC_DEMO === "true" && !githubOnly;
+const apiFetch = githubOnly ? githubApiFetch : fetch;
 
 type Project = {
   id: string;
@@ -71,10 +74,13 @@ export function App() {
   const [assetForm, setAssetForm] = useState({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
   const [contentSpecs, setContentSpecs] = useState<ContentSpec[]>([]);
   const [contentSpecForm, setContentSpecForm] = useState<{ module: ContentModule; title: string; brief: string; handoff: string }>({ module: "character", title: "", brief: "", handoff: "" });
+  const [githubConfiguration, setGitHubConfiguration] = useState({ owner: "BriDCM", repository: "El-Guapo-Data", token: "" });
+  const [githubConnected, setGitHubConnected] = useState(() => Boolean(readGitHubConfiguration()));
   const [message, setMessage] = useState("正在读取本地工作台…");
 
   const load = async () => {
-    const [projectsResponse, standardsResponse] = await Promise.all([fetch("/api/projects"), fetch("/api/standards")]);
+    const [projectsResponse, standardsResponse] = await Promise.all([apiFetch("/api/projects"), apiFetch("/api/standards")]);
+    if (!projectsResponse.ok || !standardsResponse.ok) throw new Error("无法读取工作台数据。");
     const projectData = await projectsResponse.json() as { items: Project[] };
     const standardData = await standardsResponse.json() as { items: Standard[] };
     setProjects(projectData.items);
@@ -82,12 +88,12 @@ export function App() {
     setMessage("");
   };
 
-  useEffect(() => { void load().catch(() => setMessage("无法连接本地 API。请运行 npm run dev。")); }, []);
+  useEffect(() => { if (!githubOnly || githubConnected) void load().catch(() => setMessage(githubOnly ? "无法连接 GitHub 数据仓库。请检查令牌和仓库设置。" : "无法连接本地 API。请运行 npm run dev。")); }, [githubConnected]);
 
   const loadProjectWorkspace = async (projectId: string) => {
     setSelectedProjectId(projectId);
     if (!projectId) { setTasks([]); setAssets([]); setContentSpecs([]); return; }
-    const [factsResponse, tasksResponse, assetsResponse, contentSpecsResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`), fetch(`/api/projects/${projectId}/assets`), fetch(`/api/projects/${projectId}/content-specs`)]);
+    const [factsResponse, tasksResponse, assetsResponse, contentSpecsResponse] = await Promise.all([apiFetch(`/api/projects/${projectId}/gameplay-facts`), apiFetch(`/api/projects/${projectId}/tasks`), apiFetch(`/api/projects/${projectId}/assets`), apiFetch(`/api/projects/${projectId}/content-specs`)]);
     if (!factsResponse.ok || !tasksResponse.ok || !assetsResponse.ok || !contentSpecsResponse.ok) { setMessage("无法读取项目工作区。"); return; }
     setFacts(await factsResponse.json() as GameplayFacts);
     setTasks((await tasksResponse.json() as { items: Task[] }).items);
@@ -98,7 +104,7 @@ export function App() {
   const saveGameplayFacts = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProjectId) return;
-    const response = await fetch(`/api/projects/${selectedProjectId}/gameplay-facts`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(facts) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/gameplay-facts`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(facts) });
     setMessage(response.ok ? "玩法基础已保存。" : "玩法基础保存失败。");
   };
 
@@ -106,7 +112,7 @@ export function App() {
     event.preventDefault();
     if (!selectedProjectId) return;
     const acceptanceCriteria = taskForm.acceptanceCriteria.split("\n").map((item) => item.trim()).filter(Boolean);
-    const response = await fetch(`/api/projects/${selectedProjectId}/tasks`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...taskForm, acceptanceCriteria }) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/tasks`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...taskForm, acceptanceCriteria }) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "任务创建失败。"); return; }
     setTaskForm({ title: "", outcome: "", acceptanceCriteria: "" });
@@ -117,7 +123,7 @@ export function App() {
   const createAsset = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProjectId) return;
-    const response = await fetch(`/api/projects/${selectedProjectId}/assets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(assetForm) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/assets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(assetForm) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "资产登记失败。"); return; }
     setAssetForm({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
@@ -126,7 +132,7 @@ export function App() {
   };
 
   const updateAssetStatus = async (assetId: string, approvalStatus: Asset["approvalStatus"]) => {
-    const response = await fetch(`/api/projects/${selectedProjectId}/assets/${assetId}/approval`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalStatus }) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/assets/${assetId}/approval`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalStatus }) });
     const result = await response.json() as { message?: string };
     setMessage(response.ok ? "资产审批状态已更新。" : result.message ?? "资产状态更新失败。");
     if (response.ok) await loadProjectWorkspace(selectedProjectId);
@@ -135,7 +141,7 @@ export function App() {
   const createContentSpec = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProjectId) return;
-    const response = await fetch(`/api/projects/${selectedProjectId}/content-specs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(contentSpecForm) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/content-specs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(contentSpecForm) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "设计包创建失败。"); return; }
     setContentSpecForm({ module: "character", title: "", brief: "", handoff: "" });
@@ -144,7 +150,7 @@ export function App() {
   };
 
   const updateContentSpecStatus = async (specId: string, status: ContentSpec["status"]) => {
-    const response = await fetch(`/api/projects/${selectedProjectId}/content-specs/${specId}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/content-specs/${specId}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
     const result = await response.json() as { message?: string };
     setMessage(response.ok ? "设计包审核状态已更新。" : result.message ?? "设计包状态更新失败。");
     if (response.ok) await loadProjectWorkspace(selectedProjectId);
@@ -153,7 +159,7 @@ export function App() {
   const createProject = async (event: FormEvent) => {
     event.preventDefault();
     setMessage("正在注册项目…");
-    const response = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+    const response = await apiFetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "项目注册失败。"); return; }
     setForm(emptyForm);
@@ -163,7 +169,7 @@ export function App() {
 
   const updatePlatforms = async (projectId: string) => {
     setMessage("正在更新目标平台…");
-    const response = await fetch(`/api/projects/${projectId}`, {
+    const response = await apiFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ platforms: platformsDraft })
@@ -176,13 +182,14 @@ export function App() {
   };
 
   if (publicDemo) return <PublicDemo />;
+  if (githubOnly && !githubConnected) return <main className="access-gate"><p className="eyebrow">EL GUAPO · GITHUB-ONLY MODE</p><h1>连接私有数据仓库</h1><p>不使用 localhost 或云端数据库。令牌只保留在当前浏览器会话中；每次工作台写入都会成为该私有仓库的一次 Git 提交。</p><form className="github-connect" onSubmit={(event) => { event.preventDefault(); if (!githubConfiguration.owner.trim() || !githubConfiguration.repository.trim() || !githubConfiguration.token.trim()) { setMessage("请填写 GitHub 用户名、私有数据仓库和令牌。"); return; } saveGitHubConfiguration(githubConfiguration); setGitHubConnected(true); }}><label>GitHub 用户名<input value={githubConfiguration.owner} onChange={(event) => setGitHubConfiguration({ ...githubConfiguration, owner: event.target.value })} required /></label><label>私有数据仓库<input value={githubConfiguration.repository} onChange={(event) => setGitHubConfiguration({ ...githubConfiguration, repository: event.target.value })} placeholder="El-Guapo-Data" required /></label><label>Fine-grained PAT<input type="password" value={githubConfiguration.token} onChange={(event) => setGitHubConfiguration({ ...githubConfiguration, token: event.target.value })} placeholder="仅授予该仓库 Contents: Read and write" required /></label><button>连接 GitHub 数据仓库</button></form><p className="message">{message}</p></main>;
 
   return (
     <main>
       <header>
         <p className="eyebrow">LOCAL-FIRST GAME DEVELOPMENT WORKBENCH</p>
         <h1>El Guapo</h1>
-        <p className="intro">管理多个 Unity 项目的本地开发工作台。</p>
+        <p className="intro">管理多个 Unity 项目的{githubOnly ? "GitHub 托管" : "本地"}开发工作台。</p>
       </header>
       <section className="summary" aria-label="工作台摘要">
         <article><span>已注册项目</span><strong>{projects.length}</strong><p>每个项目保持独立 Unity 仓库。</p></article>

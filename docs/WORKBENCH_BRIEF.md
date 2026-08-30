@@ -8,7 +8,7 @@ This is the upstream source of truth for the reusable workbench. Individual game
 | --- | --- |
 | Workbench name | El Guapo (confirmed) |
 | Supported game engine | Unity (confirmed) |
-| Initial deployment | Local machine (confirmed) |
+| Initial deployment | GitHub Pages + private GitHub data repository (confirmed 2026-08-30) |
 | Managed game projects | Pending first project registration |
 | Local user model | Project owner plus authorized Agents (confirmed) |
 | Asset source-of-truth default | Git + Git LFS (confirmed) |
@@ -18,6 +18,6 @@ This is the upstream source of truth for the reusable workbench. Individual game
 
 - The workbench is a browser application for planning, asset traceability, approval, tests, and releases across multiple games.
 - Every Unity game remains in its own Git repository and connects through a project registration plus the Unity adapter contract.
-- Local deployment is the first operating mode; remote collaboration is a later deployment decision.
+- Local deployment remains available for offline development; the permanent owner-facing entry is GitHub Pages with a private GitHub data repository.
 - The workbench includes a first-class **Standards & Practices** area for reusable cross-project rules and project-specific exceptions.
 - Authorized Agents can use a project-scoped local integration interface; their actions must remain attributable and auditable.
