@@ -35,8 +35,8 @@ jobs:
       - run: npm install --no-save --no-audit --no-fund @rollup/rollup-linux-x64-gnu@4.63.0
       - run: npm run build --workspace @el-guapo/workbench
         env:
-          VITE_PUBLIC_DEMO: "true"
           VITE_BASE_PATH: /El-Guapo-Platform/
+          VITE_API_BASE_URL: ${{ vars.EL_GUAPO_API_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/workbench/dist

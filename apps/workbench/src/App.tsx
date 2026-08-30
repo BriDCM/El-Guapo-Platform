@@ -1,6 +1,18 @@
 import { FormEvent, useEffect, useState } from "react";
 
-const publicDemo = import.meta.env.VITE_PUBLIC_DEMO === "true";
+const cloudApiBase = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const publicDemo = import.meta.env.VITE_PUBLIC_DEMO === "true" || (!cloudApiBase && import.meta.env.PROD);
+const cloudSessionKey = "el-guapo-cloud-session";
+
+function apiUrl(path: string) { return `${cloudApiBase}${path}`; }
+function apiFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (cloudApiBase) {
+    const token = sessionStorage.getItem(cloudSessionKey);
+    if (token) headers.set("authorization", `Bearer ${token}`);
+  }
+  return fetch(apiUrl(path), { ...init, headers });
+}
 
 type Project = {
   id: string;
@@ -71,10 +83,11 @@ export function App() {
   const [assetForm, setAssetForm] = useState({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
   const [contentSpecs, setContentSpecs] = useState<ContentSpec[]>([]);
   const [contentSpecForm, setContentSpecForm] = useState<{ module: ContentModule; title: string; brief: string; handoff: string }>({ module: "character", title: "", brief: "", handoff: "" });
+  const [access, setAccess] = useState<"local" | "checking" | "authenticated" | "signed_out">(cloudApiBase ? "checking" : "local");
   const [message, setMessage] = useState("正在读取本地工作台…");
 
   const load = async () => {
-    const [projectsResponse, standardsResponse] = await Promise.all([fetch("/api/projects"), fetch("/api/standards")]);
+    const [projectsResponse, standardsResponse] = await Promise.all([apiFetch("/api/projects"), apiFetch("/api/standards")]);
     const projectData = await projectsResponse.json() as { items: Project[] };
     const standardData = await standardsResponse.json() as { items: Standard[] };
     setProjects(projectData.items);
@@ -82,12 +95,24 @@ export function App() {
     setMessage("");
   };
 
-  useEffect(() => { void load().catch(() => setMessage("无法连接本地 API。请运行 npm run dev。")); }, []);
+  useEffect(() => {
+    const start = async () => {
+      if (cloudApiBase) {
+        const token = new URLSearchParams(window.location.hash.slice(1)).get("session");
+        if (token) { sessionStorage.setItem(cloudSessionKey, token); window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`); }
+        const response = await apiFetch("/auth/session");
+        if (!response.ok) { setAccess("signed_out"); return; }
+        setAccess("authenticated");
+      }
+      await load();
+    };
+    void start().catch(() => setMessage(cloudApiBase ? "无法连接云端 El Guapo 服务。请稍后重试。" : "无法连接本地 API。请运行 npm run dev。"));
+  }, []);
 
   const loadProjectWorkspace = async (projectId: string) => {
     setSelectedProjectId(projectId);
     if (!projectId) { setTasks([]); setAssets([]); setContentSpecs([]); return; }
-    const [factsResponse, tasksResponse, assetsResponse, contentSpecsResponse] = await Promise.all([fetch(`/api/projects/${projectId}/gameplay-facts`), fetch(`/api/projects/${projectId}/tasks`), fetch(`/api/projects/${projectId}/assets`), fetch(`/api/projects/${projectId}/content-specs`)]);
+    const [factsResponse, tasksResponse, assetsResponse, contentSpecsResponse] = await Promise.all([apiFetch(`/api/projects/${projectId}/gameplay-facts`), apiFetch(`/api/projects/${projectId}/tasks`), apiFetch(`/api/projects/${projectId}/assets`), apiFetch(`/api/projects/${projectId}/content-specs`)]);
     if (!factsResponse.ok || !tasksResponse.ok || !assetsResponse.ok || !contentSpecsResponse.ok) { setMessage("无法读取项目工作区。"); return; }
     setFacts(await factsResponse.json() as GameplayFacts);
     setTasks((await tasksResponse.json() as { items: Task[] }).items);
@@ -98,7 +123,7 @@ export function App() {
   const saveGameplayFacts = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProjectId) return;
-    const response = await fetch(`/api/projects/${selectedProjectId}/gameplay-facts`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(facts) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/gameplay-facts`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(facts) });
     setMessage(response.ok ? "玩法基础已保存。" : "玩法基础保存失败。");
   };
 
@@ -106,7 +131,7 @@ export function App() {
     event.preventDefault();
     if (!selectedProjectId) return;
     const acceptanceCriteria = taskForm.acceptanceCriteria.split("\n").map((item) => item.trim()).filter(Boolean);
-    const response = await fetch(`/api/projects/${selectedProjectId}/tasks`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...taskForm, acceptanceCriteria }) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/tasks`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...taskForm, acceptanceCriteria }) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "任务创建失败。"); return; }
     setTaskForm({ title: "", outcome: "", acceptanceCriteria: "" });
@@ -117,7 +142,7 @@ export function App() {
   const createAsset = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProjectId) return;
-    const response = await fetch(`/api/projects/${selectedProjectId}/assets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(assetForm) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/assets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(assetForm) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "资产登记失败。"); return; }
     setAssetForm({ name: "", assetType: "角色", lfsPath: "", rightsStatus: "待确认" });
@@ -126,7 +151,7 @@ export function App() {
   };
 
   const updateAssetStatus = async (assetId: string, approvalStatus: Asset["approvalStatus"]) => {
-    const response = await fetch(`/api/projects/${selectedProjectId}/assets/${assetId}/approval`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalStatus }) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/assets/${assetId}/approval`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ approvalStatus }) });
     const result = await response.json() as { message?: string };
     setMessage(response.ok ? "资产审批状态已更新。" : result.message ?? "资产状态更新失败。");
     if (response.ok) await loadProjectWorkspace(selectedProjectId);
@@ -135,7 +160,7 @@ export function App() {
   const createContentSpec = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedProjectId) return;
-    const response = await fetch(`/api/projects/${selectedProjectId}/content-specs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(contentSpecForm) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/content-specs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(contentSpecForm) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "设计包创建失败。"); return; }
     setContentSpecForm({ module: "character", title: "", brief: "", handoff: "" });
@@ -144,7 +169,7 @@ export function App() {
   };
 
   const updateContentSpecStatus = async (specId: string, status: ContentSpec["status"]) => {
-    const response = await fetch(`/api/projects/${selectedProjectId}/content-specs/${specId}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
+    const response = await apiFetch(`/api/projects/${selectedProjectId}/content-specs/${specId}/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status }) });
     const result = await response.json() as { message?: string };
     setMessage(response.ok ? "设计包审核状态已更新。" : result.message ?? "设计包状态更新失败。");
     if (response.ok) await loadProjectWorkspace(selectedProjectId);
@@ -153,7 +178,7 @@ export function App() {
   const createProject = async (event: FormEvent) => {
     event.preventDefault();
     setMessage("正在注册项目…");
-    const response = await fetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+    const response = await apiFetch("/api/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
     const result = await response.json() as { message?: string };
     if (!response.ok) { setMessage(result.message ?? "项目注册失败。"); return; }
     setForm(emptyForm);
@@ -163,7 +188,7 @@ export function App() {
 
   const updatePlatforms = async (projectId: string) => {
     setMessage("正在更新目标平台…");
-    const response = await fetch(`/api/projects/${projectId}`, {
+    const response = await apiFetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ platforms: platformsDraft })
@@ -176,13 +201,15 @@ export function App() {
   };
 
   if (publicDemo) return <PublicDemo />;
+  if (access === "checking") return <main className="access-gate"><p className="eyebrow">EL GUAPO CLOUD</p><h1>正在验证访问权限…</h1></main>;
+  if (access === "signed_out") return <main className="access-gate"><p className="eyebrow">EL GUAPO CLOUD</p><h1>登录后进入工作台</h1><p>真实项目数据保存在受保护的云端服务中，不会公开到 GitHub Pages。</p><button type="button" onClick={() => window.location.assign(apiUrl("/auth/login"))}>使用 GitHub 登录</button>{message && <p className="message">{message}</p>}</main>;
 
   return (
     <main>
       <header>
         <p className="eyebrow">LOCAL-FIRST GAME DEVELOPMENT WORKBENCH</p>
         <h1>El Guapo</h1>
-        <p className="intro">管理多个 Unity 项目的本地开发工作台。</p>
+        <p className="intro">管理多个 Unity 项目的{cloudApiBase ? "云端" : "本地"}开发工作台。</p>
       </header>
       <section className="summary" aria-label="工作台摘要">
         <article><span>已注册项目</span><strong>{projects.length}</strong><p>每个项目保持独立 Unity 仓库。</p></article>

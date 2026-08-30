@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "el-guapo-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-30",
+  "workers_dev": true,
+  "vars": {
+    "PUBLIC_APP_URL": "https://bridcm.github.io/El-Guapo-Platform/",
+    "OWNER_GITHUB_LOGIN": "BriDCM"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "el-guapo",
+      "database_id": "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

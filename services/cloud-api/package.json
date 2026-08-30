@@ -1,0 +1,17 @@
+{
+  "name": "@el-guapo/cloud-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "test": "echo 'Cloud Worker integration tests require a configured D1 binding; see WB-006 acceptance record.'"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "wrangler": "4.127.1"
+  }
+}
